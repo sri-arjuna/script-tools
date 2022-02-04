@@ -1,0 +1,15 @@
+#!/bin/bash
+	title "$GIT_MSG_HOME_CONFIG"
+# Name
+	git_name=$(ask "$GIT_MSG_YOUR_NAME? ($USER_NAME)")
+	[[ -z "$git_name" ]] && git_name="$USER_NAME"
+# Email
+	git_mail=$(ask "$GIT_MSG_YOUR_NAME ($USER_EMAIL)")
+	[[ -z "$git_mail" ]] && git_mail="$USER_EMAIL"
+# Save data
+	$CAT > "${GIT_CFG_HOME}" << EOF
+$SWARM_MSG_RC_HEADER
+[user]
+	user  = $git_name
+	email = $git_mail
+EOF

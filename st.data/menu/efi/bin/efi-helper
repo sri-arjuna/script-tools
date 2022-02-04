@@ -1,0 +1,437 @@
+#!/usr/bin/env bash
+# ------------------------------------------------------------------------
+#
+# Copyright (c) 2014-2016 by Simon Arjuna Erat (sea)  <erat.simon@gmail.com>
+# All rights reserved.
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Lesser General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>
+#
+# ------------------------------------------------------------------------
+#
+#	File:		efi-helper
+#	Author: 	Simon Arjuna Erat (sea)
+#	Contact:	erat.simon@gmail.com
+#	License:	GNU General Public License (GPL)
+#	Created:	2014.04.15
+#	Changed:	2016.01.09
+	script_version=0.4
+	TITLE="Troubleshooting efibootmgr"
+#	Description:	This script should help to get basics troubleshooting tasks done
+#			However, it is not a 'complete handler' for the use of eifbootmgr
+#
+#
+#	Script Environment
+#
+	ME="${0##*/}"				# Basename of efi-helper
+	ME="${ME/.sh/}"				# Cut off .sh extension, if available
+	ME_DIR="/usr/share/efi-helper"
+	CONFIG_DIR="/etc"		# Configuration directory
+	CONFIG="$CONFIG_DIR/$ME.conf"		# Configuration file
+	LOG="$CONFIG_DIR/$ME.log"		# Logfile
+	EFI_REMOVE=$CONFIG_DIR/profile.d/${ME}-remove.sh # This script will contain the data to be remove upon EVERY start of linux
+#
+#	Internal defaults
+#
+	beVerbose=false
+	CMD=efibootmgr
+	
+#
+#	Its a handler for efibootmgr, which requires root access!
+#
+	#[[ $UID -ne 0 ]] && printf "%s\n" "$ME : Requires root access!" && exit 1
+	# Exit with failure if it isnt an EFI system!
+	[ ! -d /boot/efi ] && echo "This is not an EFI system!" && exit 1
+#
+#	Help text
+#
+	help_text="
+$ME ($script_version)
+${TITLE^}
+Usage: 		$ME [options] [arguments]
+Examples:	$ME 
+		$ME -a
+		$ME -e optVAL
+Where options are:
+	-h(elp) 		This screen
+	-C(onf			Show the config menu
+	-L(og)			Show the log file ($LOG)
+	-v(erbose)		Be verbose on output
+	-V(visual debug)	Enable +x within the script
+	-------------------------------------------------------
+	-d(evice)	/dev/ice	Use this device for the bootloader
+	-e(efipart)	/dev/ice1	Use the UUID of this partition as EFI partition
+	-c(lean)			Empties the logfile ($LOG)
+
+Files:
+--------------------------------------
+Script:		$ME
+Script-Dir:	$ME_DIR
+Config: 	$CONFIG
+Config_Dir:	$CONFIG_DIR
+Log:		$LOG
+"
+#
+#	Configuration file template
+#
+#	TODO
+#	Apply your applications default configuration values
+#
+#
+	config_template="#!/bin/bash
+# Configuration file for $ME ($script_version) by Simon Arjuna Erat (sea)
+#
+##
+### IMPORTANT NOTE: The label may NOT contain ANY spaces at all!
+##
+#
+#	Variables : Shared
+#
+	DEVICE=/dev/sda
+	EFIPART=$(echo 1|gdisk -l /dev/sda|grep -i EFI|awk '{print $1}')
+#
+#	Variables : Fedora
+#
+	fedora_lbl=$(awk '{print $1}'  /etc/fedora-release)
+	fedora_ver=$(awk '{print $3}'  /etc/fedora-release)
+	fedora_efi=shim.efi
+#
+#	Variables : Windows
+#
+	windows_lbl=Windows
+	windows_ver=8.1
+	windows_efi=bootmgfw.efi
+"
+#
+#	Functions
+#
+	doLog() { # "MESSAGE STRING"
+	# Prints: Time & "Message STRING"
+	# See 'tui-log -h' for more info
+		tui-log -t "$LOG" "$1"
+	}
+	getUUID() { # 
+	# Parses BLKID's output for efi entries and return its uuid
+	#
+		oifs="$IFS" ; IFS=" "
+		blkid | grep -i efi | \
+			while read part uuid type label puuid;do
+				tmp=$(printf $uuid|sed s,"="," ",g|awk '{print $2}')
+				UUID=${tmp:1:-1}
+				printf $UUID
+			done
+		IFS="$oifs"
+	}
+	write_windows_grubfile(){ # ROOTUUID [FILENAME]
+	#
+	#
+		[[ -z "$1" ]] && UUID=$(getUUID) || UUID="$1"
+		[[ -z "$2" ]] && tFILE="40_windows" || tFile="$2"
+		TARGET="/etc/grub.d/$tFILE"
+		
+		doLog "Writing GRUB file to start windows"
+		doLog "Writing to $TARGET, using $UUID"
+		
+		cat > $TARGET << EOF
+#!/bin/sh
+exec tail -n +3 \$0
+menuentry "${windows_lbl^} $windows_ver" --class windows {
+	insmod part_gpt
+	insmod fat
+	insmod search_fs_uuid
+	insmod chain
+	search --fs-uuid --no-floppy --set=root $UUID
+	chainloader (\${root})/efi/Microsoft/Boot/${windows_efi}
+}
+EOF
+		chmod +x $TARGET
+		
+		cd /boot/efi/EFI/fedora
+		DATE=$(date +'%Y.%m.%d')
+		G=grub.cfg
+		NEW=${G/.cfg/-backup-$DATE.cfg}
+		
+		if [[ -f $NEW ]]
+		then	$beVerbose && tui-print -E "Usualy, the first backup of a day WAS working, NOT overwriting the backup..."
+		else	$beVerbose && tui-print -E "Backing up current GRUB2 config..." "$NEW"
+			doLog "Create backup config to $(pwd)$NEW"
+			mv $G $NEW
+		fi
+		
+		$beVerbose && tui-print -E "Generating a new GRUB2 config..."
+		grub2-mkconfig > $G
+	}
+	list_nvram() { #
+	# List a 'table' of the nvram
+	#
+		efibootmgr -v | \
+			grep -v Next | \
+			grep -v Cur | \
+			grep -v Time | \
+			grep ^B | \
+			while read ID LABEL INFO;do
+			printf "$ID\t $LABEL\t $INFO\n"
+		done
+	}
+	list_nvram_num() { #
+	#
+	#
+		for L in $(list_nvram|grep -v Next|awk '{print $1}');do
+			printf "%s\n" "${L:4:-1}"
+		done
+	}
+	get_nvram_lbl() { # ID
+	#
+	#
+		list_nvram|grep ^Boot$1|awk '{print $2}'
+	}
+	clear_nvram() { #
+	# Parses all entries and deletes one by one
+	#
+		tui-yesno "This will REMOVE all nvram entrys, are you really sure?" || exit 1
+		LIST=$(list_nvram_num)
+		
+		if [[ 3 -lt "${#LIST}" ]]
+		then 	for N in $LIST;do
+				lbl=$(get_nvram_lbl $N)
+				$beVerbose && tui-print "Removing $N ($lbl)" "$TUI_WORK"
+				doLog "Attempt to remove '$lbl' from '$N'"
+				efibootmgr -b $N -B $N > /dev/null
+				$beVerbose && tui-status 0 "Removed $N ($lbl)"
+			done
+			$beVerbose && printf "" > /dev/null || tui status 0 "Removed all NVram entries found"
+		else	tui-status $RET_INFO "NVram is already empty!"
+		fi
+	}
+	ConfigMenu() { # 
+	# Configures the variables/files used by the script
+	#
+	#	Check for config file
+	#
+		[[ -f "$CONFIG" ]] || \
+			( printf "$config_template" > "$CONFIG" ; doLog "Config: Default configurationfile created" )
+	#
+	#	Menu entries
+	#
+		opwd=$(pwd)
+		cd "$CONFIG_DIR"
+	#
+	#	Menu / Action
+	#
+		setup_toggle=true
+		while $setup_toggle ; do
+			# While there are more files, printf 'header'
+			clear 
+			tui-header "$ME ($script_version)" "$TITLE" "$(date +'%F %T')"
+			tui-title "Setup : $ME"
+			
+			# Its only 1 file, preview
+			for VAR in $(tui-conf-get -l "$CONFIG");do 
+				val="$(tui-conf-get $CONFIG $VAR)"
+				tui-print -E "$VAR" "$val"
+			done
+			
+			tui-print -E "Please select wich value to change:"
+			select VAR in Back Edit $(tui-conf-get -l "$CONFIG");do
+			case $VAR in
+			Back) 	setup_toggle=false
+				break
+				;;
+			Edit)	tui-edit "$CONFIG"
+				;;
+			*)	VAL=$(tui-conf-get "$CONFIG" "$VAR")
+				tui-print -E "Currently '$VAR' is set to '$VAL'."
+				tui-yesno "Do you really want to change this?" || break
+				newval=$(tui-read "Please type new value:")
+				msg="Changed \"$VAR\" from \"$VAL\" to \"$newval\""
+				tui-conf-set "$CONFIG" "$VAR" "$newval"
+				tui-status $? "$msg" && \
+					doLog "Setup: $msg" || \
+					doLog "Setup: Failed to c$(printf ${msg:1}|sed s,ged,ge,g)"
+				;;
+			esac
+			done
+		done
+		cd "$pwd"
+	}
+#
+#	Environment checks
+#
+	# This is optimized for a one-time setup
+	if [[ ! -e "$CONFIG" ]]
+	then	[[ -d "$CONFIG_DIR" ]] || \
+			( mkdir -p "$CONFIG_DIR" ; tui-print -E "Entering first time setup." "$SKIP" )
+		[[ ! -e "$LOG" ]] && \
+			touch $LOG && \
+			doLog "------------------------------------------" && \
+			doLog "Created logfile of $ME ($script_version)" && \
+			doLog "------------------------------------------" && \
+			doLog "Setup : First config"
+		ConfigMenu
+	fi
+	# Load default values before argument handling
+## TODO : Remove these line if you want to read the defaults from CONFIG manualy
+	if ! source "$CONFIG"
+	then  	doLog "Failed to load: $CONFIG"
+		tui-status 1 "Failed to load: $CONFIG"
+	fi
+#
+#	Catching Arguments
+#
+	[ "$1" = "--sample" ] && echo "$config_template" && exit 0
+	while getopts "hCLd:vV" opt
+	do 	case $opt in
+		h)	printf "$help_text"
+			exit $RET_HELP
+			;;
+		L)	less "$LOG"	
+			exit $RET_DONE
+			;;
+		C)	ConfigMenu
+			exit $RET_DONE
+			;;
+# --------------- Custom options -----------------------
+		d)	doLog "Changed $DEVICE to $OPTARG"
+			DEVICE="$OPTARG"
+			;;
+		e)	doLog "Changed $$EFIPART to $OPTARG"
+			EFIPART="$OPTARG"
+			;;
+		v)	doLog "Verbose mode: on"
+			beVerbose=true
+			CMD+=" -v"
+			doLog "CMD is now $CMD"
+			;;
+		V)	doLog "Debug mode: on"
+			set -x
+		esac
+	done
+	shift $(($OPTIND - 1))
+	ARGS=("${*}")			# Remaining arguments
+	ARGS_COUNT=${#ARGS[@]}		# Amount of remaining
+#
+#	Display & Action
+#
+	tui-header "$ME ($script_version)" "$(date +'%F %T')"
+	tui-title "$TITLE"
+	mnu_A="Clean ALL nvram entries"
+	mnu_B="Add basic dual boot (Win & Fedora) entries"
+	mnu_C="The Windows entry fails"
+	mnu_D="Reinstall GRUB2 to $DEVICE"
+	mnu_E="Boot Next"
+	mnu_F="Set another boot order"
+	mnu_G="Remove a certain ID at every start (BETA)"
+	mnu_H="Add an entry of EVERY efi file found in /boot/efi/EFI/"
+	mnu_Z="Show Info"
+	select MENU in "$mnu_Z" "$mnu_A" "$mnu_B" "$mnu_C" "$mnu_D" "$mnu_E" "$mnu_F" "$mnu_G"  "$mnu_H" Quit;do
+	case $MENU in
+	Quit)	break	;;
+	"$mnu_A")	tui-title "$MENU"
+			clear_nvram ;
+			;;
+	"$mnu_B")	tui-title "Adding basic dual boot entries..."
+			$beVerbose && tui-print "Adding Windows entry..."
+			cmd="$CMD -c -L \"${windows_lbl}_${windows_ver}\" -l \"\\EFI\\Microsoft\\Boot\\$windows_efi\" -d $DEVICE -p $EFIPART"
+			doLog "Adding Windows: $cmd"
+			$cmd
+			tui-status 0 "Added Windows entry"
+			
+			$beVerbose && tui-print "Adding Fedora entry..."
+			cmd="$CMD -c -L \"${fedora_lbl}_${fedora_ver}\" -l \"\\EFI\\fedora\\$fedora_efi\" -d $DEVICE -p $EFIPART"
+			doLog "Adding Fedora: $cmd"
+			$cmd
+			tui-status 0 "Added Fedora entry"
+			;;
+	"$mnu_C")	tui-title "$MENU"
+			tui-print -E "On occourence, the only known solution is to add an additional GRUB entry"
+			if tui-yesno "If you already added this entry, did it work? (first time = yes)"
+			then	# Its either first time or its working
+				write_windows_grubfile
+			else	# Use the alternative filename
+				UUID=$(getUUID)
+				tui-yesno "Found UUID: $UUID, is this the right one? (i dont know=yes)" || \
+					UUID=$(tui-read "Please enter the proper UUID of your UEFI partition")
+				write_windows_grubfile "$UUID" "11_windows"
+			fi
+			;;
+	"$mnu_Z")	tui-title "Information of your NVram entries:"
+			$CMD
+			;;
+	"$mnu_D")	tui-title "Reinstall GRUB2 to $DEVICE..."
+			cmd="grub2-install --boot-directory=/boot --target=$(uname -m) --directory=/usr/lib/grub/i386-pc $DEVICE"
+			doLog "Install GRUB to $DEVICE"
+			$cmd 2>> $LOG
+			tui-status $? "Installed GRUB to $DEVICE" || tui-status $RET_INFO "Please see the '$ME -L' or '$LOG' for more information"
+			;;
+	"$mnu_E")	tui-title "Which ID to boot?"
+			efibootmgr|grep -v Time|grep -v Next| while read line;do
+					tui-print -E "$line"
+				done
+			select ID in $(list_nvram_num);do 
+				tui-print -E "Selected $ID ($(get_nvram_lbl $ID)) to be next target boot" "$TUI_DONE"
+				efibootmgr -n $ID > /dev/null
+				break
+			done
+			;;
+	"$mnu_F")	tui-title "Set boot order"
+			tui-print -E "First one added remains first one in order"
+			$CMD
+			neworder=""
+			select ORD in done $(list_nvram_num);do
+				[[ $ORD = done ]] && break
+				neworder+=",$ORD"
+				$beVerbose && tui-print -E "Current boot order:" "${neworder:1}"
+			done
+			$CMD -o ${neworder:1} > /dev/null
+			tui-status $? "Set boot order to:" "${neworder:1}"
+			;;
+	"$mnu_G")	tui-title "Remove a certain ID at every start"
+			tui-print -E "I HIGHLY recomend to do another boot and then remove the 'that' last ID!"
+			tui-print -E "What do you want to do?"
+			select REMOVER in Add Remove;do break; done
+			case $REMOVER in
+			Add)	tui-print -E "Please select the ID you want to have removed:"
+				$CMD | while read line;do tui-print -E "$line";done
+				select ID in $(list_nvram_num);do break;done
+				touch $EFI_REMOVE
+				printf "#!/bin/bash\n# Script generated by $ME ($script_version)\n$CMD -b $ID -B $ID" > $EFI_REMOVE
+				tui-status $? "Created $EFI_REMOVE"
+				;;
+			Remove)	tui-print -E "Removing $EFI_REMOVE"
+				rm -f $EFI_REMOVE
+				tui-status $? "Removed $EFI_REMOVE"
+				;;
+			esac
+			;;
+	"$mnu_H")	tui-title "$MENu"
+			cd /boot/efi/EFI/
+			for HOUSE in *;do
+				$beVerbose && tui-print "Adding entries for $HOUSE..."
+				SHIMS=$(find $HOUSE -name *efi)
+				for shim in $SHIMS;do
+					$beVerbose && tui-print "Adding entry $shim..."
+					this="${shim/\/boot/}"
+					new_shim="$(echo $shim| sed s,'/','\\\\',g)"
+					label=${shim##*/}
+					label="${label/\.efi/}"
+					cmd="$CMD -c -d $DEVICE -p $EFIPART -l \\\\EFI\\\\$new_shim -L ${HOUSE}_$label"
+					doLog "Adding: $HOUSE - $shim : $cmd"
+					$cmd
+					tui-status 0 "Added efi entry for $HOUSE - $shim"
+				done
+			done
+			cd "$OLDPWD"
+			;;
+	esac
+	tui-print -E "Press [ENTER] to see the menu"
+	done

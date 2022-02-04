@@ -1,0 +1,12 @@
+#!/bin/bash
+title "$SWARM_MSG_WORD_LOG"
+pick "$SWARM_MSG_WORD_PROJECT" "GIT" \
+    1>/dev/null
+case "$PICKED" in
+  "GIT")
+        printfile "$LOG_GIT"
+        ;;
+  "$SWARM_MSG_WORD_PROJECT")
+        git log 2>/dev/null
+        ;;
+esac

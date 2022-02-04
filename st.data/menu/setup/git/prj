@@ -1,0 +1,76 @@
+#!/bin/bash
+#
+# Workdir
+#
+	title "$GIT_MSG_PRJ_TITLE"
+	status 111 "$GIT_MSG_PRJ_CURRENT_DIR" "$PWD_OLD"
+#
+# Create a git repository
+#
+	if [[ -d "$PWD_OLD/.git" ]]
+	then	status 111 "$GIT_MSG_PRJ_DIR_ALREADY_PRJ"
+		#PICKED="$SWARM_MSG_WORD_LOCAL"
+		exit $?
+	fi
+	printe "$GIT_MSG_DOES_PROJECT_EXIST"
+	pick "$SWARM_MSG_WORD_LOCAL" "$SWARM_MSG_WORD_REMOTE" "$SWARM_MSG_WORD_NEW" 1>/dev/null
+#
+# Check for path and project name
+#
+	local git_list_projects=$(cfg.list "$GIT_CONF" | $GREP _name)
+	local git_bool_prj_list_add=true
+	# Check for existing project entries
+	if [[ -n "$git_list_projects" ]]
+	then	# Found stuff
+		git_bool_prj_list_add=false
+	else
+		git.log "$GIT_MSG_LIST_PRJ_MISSING"
+		$TOUCH "$GIT_CONF"
+	fi
+	--- GIT_MSG_PRJ_CURRENT_DIR ---
+	--- prj name
+#
+# Act acording to selection / pick
+#
+	case "$PICKED" in
+		"$SWARM_MSG_WORD_LOCAL")
+			(
+				cd "$PWD_OLD"
+				git remote add origin git@github.com:sri-arjuna/script-tools.git
+				git branch -M main
+				git push -u origin main
+			)
+			status $? "RET $? -- TODO txt"
+			;;
+		"$SWARM_MSG_WORD_REMOTE")
+			(
+				cd "$PWD_OLD"
+				git pull git@github.com:sri-arjuna/script-tools.git
+			)
+			;;
+		"$SWARM_MSG_WORD_NEW")
+			(
+				cd "$PWD_OLD"
+				$ECHO "# script-tools" >> README.md
+				git init
+				git add README.md
+				git commit -m "first commit"
+				git branch -M main
+				git remote add origin git@github.com:sri-arjuna/script-tools.git
+				git push -u origin main
+			)
+			;;
+		esac
+	if yesno "$GIT_MSG_PRJ_CREATE"
+	then	# Check if already
+		(
+			cd "$PWD_OLD"
+			git init
+			#git branch -m master
+			#git config --global init.defaultBranch master
+		)
+		git.log "${SWARM_MSG_WORD_CREATED} GIT @ ${PWD_OLD}"
+		if [[ -d "$PWD_OLD/.git" ]]
+		then	yesno "$GIT_MSG_PRJ_SETUP_SSH_NOW" && . ./ssh
+		fi
+	fi

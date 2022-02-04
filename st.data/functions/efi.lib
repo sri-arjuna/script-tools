@@ -1,0 +1,128 @@
+#!/bin/bash
+#systemd-id128 show
+#
+# Variables
+#
+	LOG_EFI="$LOG_DIR/efi.log"
+	CONF_EFI="${CONFIG_DIR/$script_name/efi}"
+	CMD_EFI="efibootmgr"
+#
+# Functions
+#
+	efi.log() { # MSG
+	# Writes MSG to $LOG_EFI
+	#
+		[[ -d "$LOG_DIR" ]] || swarm.util.mkdir "$LOG_DIR"
+		[[ -f "$LOG_EFI" ]] || touch "$LOG_EFI"
+		log -f "$LOG_EFI" -r "efi" "$1"
+	}
+	efi.check() {
+	# Checks wether /boot/efi was found or not
+	#
+		[ ! -d /boot/efi ] && $ECHO "$EFI_MSG_NOT_EFI_SYSTEM" && return 1
+	}
+	efi.getUUID() { #
+	# Parses BLKID's output for efi entries and return its uuid
+	#
+		oifs="$IFS" ; IFS=" "
+		blkid | $GREP -i efi | \
+			while read part uuid type label puuid;do
+				tmp=$($PRINTF $uuid|$SED s,"="," ",g|$AWK '{print $2}')
+				UUID=${tmp:1:-1}
+				$PRINTF $UUID
+			done
+		IFS="$oifs"
+	}
+	efi.list_nvram() { #
+	# List a 'table' of the nvram
+	#
+		$CMD_EFI -v | \
+			$GREP -v Next | \
+			$GREP -v Cur | \
+			$GREP -v Time | \
+			$GREP ^B | \
+			while read ID LABEL INFO;do
+			$PRINTF "$ID\t $LABEL\t $INFO\n"
+		done
+	}
+	efi.list_nvram_num() { #
+	#
+	#
+		for L in $(efi.list_nvram|$GREP -v Next|$AWK '{print $1}');do
+			$PRINTF "%s\n" "${L:4:-1}"
+		done
+	}
+	efi.get_nvram_lbl() { # ID
+	#
+	#
+		efi.list_nvram|$GREP ^Boot$1|$AWK '{print $2}'
+	}
+	efi.clear_nvram() { #
+	# Parses all entries and deletes one by one
+	#
+		yesno "$EFI_MSG_NVRAM_REMOVE_ASK" || return 1
+		LIST=$(efi.list_nvram_num)
+
+		if [[ 3 -lt "${#LIST}" ]]
+		then 	for N in $LIST;do
+				lbl=$(efi.get_nvram_lbl $N)
+				$beVerbose && status $RET_WORK "$SWARM_MSG_WORD_REMOVING $N ($lbl)" #"$TUI_WORK"
+				efi.log "Attempt to remove '$lbl' from '$N'"
+				$CMD_EFI -b $N -B $N > /dev/null
+				$beVerbose && status 0 "$SWARM_MSG_WORD_REMOVED $N ($lbl)"
+			done
+			$beVerbose && $PRINTF "" > /dev/null || status 0 "$EFI_MSG_NVRAM_REMOVED"
+		else	status $RET_INFO "$EFI_MSG_NVRAM_EMPTY"
+		fi
+	}
+	efi.ConfigMenu() { #
+		# Configures the variables/files used by the script
+		#
+		#	Check for config file
+		#
+			[[ -f "$CONF_EFI" ]] || \
+				( printf "$config_template" > "$CONF_EFI" ; efi.log "Config: Default configurationfile created" )
+		#
+		#	Menu entries
+		#
+			opwd=$(pwd)
+			cd "$CONFIG_DIR"
+		#
+		#	Menu / Action
+		#
+			setup_toggle=true
+			while $setup_toggle ; do
+				# While there are more files, printf 'header'
+				clear
+				header "$ME ($script_version)" "$TITLE" "$(date +'%F %T')"
+				title "Setup : $ME"
+
+				# Its only 1 file, preview
+				for VAR in $(cfg.get -l "$CONF_EFI");do
+					val="$(cfg.get $CONFIG $VAR)"
+					printe "$VAR" "$val"
+				done
+
+				printe "Please select wich value to change:"
+				select VAR in Back Edit $(cfg.get -l "$CONF_EFI");do
+				case $VAR in
+				Back) 	setup_toggle=false
+					break
+					;;
+				Edit)	edit "$CONF_EFI"
+					;;
+				*)	VAL=$(cfg.get "$CONF_EFI" "$VAR")
+					printe "Currently '$VAR' is set to '$VAL'."
+					yesno "Do you really want to change this?" || break
+					newval=$(ask "Please type new value:")
+					msg="Changed \"$VAR\" from \"$VAL\" to \"$newval\""
+					cfg.set "$CONF_EFI" "$VAR" "$newval"
+					status $? "$msg" && \
+						efi.log "Setup: $msg" || \
+						efi.log "Setup: Failed to c$(printf ${msg:1}|sed s,ged,ge,g)"
+					;;
+				esac
+				done
+			done
+			cd "$pwd"
+		}

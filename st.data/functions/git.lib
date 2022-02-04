@@ -1,0 +1,76 @@
+#!/bin/bash
+#
+# Variables
+#
+	LOG_GIT="$LOG_DIR/git.log"
+	CONF_GIT="${CONF_DIR}/git.conf"
+	CMD_GIT="git"
+	GIT_CFG_HOME="$HOME/.gitconfig"
+#
+#	functions
+#
+	git.log() { # MSG
+	#
+	#
+		log -r "GIT" -f "$LOG_GIT" "${@}"
+	}
+	git.save() { # VAR VALUE
+	#
+	#
+		cfg.set "$CONF_GIT" "$1" "$2"
+	}
+	git.prj.dir() { #
+	# Returns bool if we are within a project dir
+	#
+		local str_checker="${PWD##*/}"
+		[[ "${PWD_OLD/$SWARM_USER_PROJECTS}" == "$str_checker" ]] && [[ "$PWD_OLD" == "$SWARM_USER_PROJECTS/$str_checker" ]]
+	}
+	git.prj.name() { #
+	# Returns project name if within project dir
+	#
+		local str_checker="${PWD_OLD##*/}"
+		git.prj.dir && $ECHO "$str_checker"
+	}
+	git.prj.load() { # [PROJECT_NAME]
+	# Loads and exports variables according to provided PROJECT_NAME
+	# or current directory if no variable was provided
+		local prj_name=""
+		local prj_dir=""
+		local prj_provider=""
+		local c=-1	# count max
+		local n=0		# num increase
+		# Check if no project was provided
+		if [[ -z "$1" ]]
+		then	# None provided, check if we are in a project dir
+				! git.prj.dir && return 1
+		fi
+		# Retrieve prj_name
+		# return if still empty (should not happen)
+		prj_name="${1:-$(git.prj.dir.name)}"
+		[[ -n "$prj_name" ]] || return 1
+		# Get values
+		source "$GIT_CONF"
+		c=$(( ${#GIT_PRJ_NAME[*]} -1 ))
+		# Check if (any) entry exists
+		[[ $c -lt 0 ]] && return 1
+		# Search for proper index
+		while [[ $n -le $c ]]
+		do
+			[[ "$prj_name" == "${GIT_PRJ_NAME[$n]}" ]] && break
+			((n++))
+		done
+		# Did we find anything?
+		[[ $n -gt $c ]] && return 1
+		# Seems like it, export it to outside function
+		# Yes, we overwrite an array as a string
+		export GIT_PRJ_NAME="${GIT_PRJ_NAME[$n]}"
+		export GIT_PRJ_DIR="${GIT_PRJ_DIR[$n]}"
+		export GIT_PRJ_PROVIDER="${GIT_PRJ_PROVIDER[$n]}"
+	}
+	git.prj.load.new() { #
+	#
+	#
+		local ni=$(( ${#GIT_PRJ_NAME[*]} ))		# New Index
+		echo $ni
+	}
+	git.prj.load.new

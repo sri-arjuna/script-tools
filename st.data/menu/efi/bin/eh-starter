@@ -1,0 +1,19 @@
+#!/usr/bin/env  bash
+# File: 	eh-starter
+# Description:	Starter script for efi-helper
+#  2015 by sea (sea@cyberdyne.ocean)
+# ------------------------------------------------------
+#
+#	Variables
+#
+	APP=efi-helper
+	for cfg in / /usr /usr/local $HOME $HOME/local $HOME/.local
+	do 	checkthis="$cfg/etc/$APP.conf"
+		[ -f "$checkthis" ] && source "$checkthis" && break
+	done
+#
+#	Action & Display
+#
+	tui \
+		-T "$APP" \
+		-p "$DATADIR"

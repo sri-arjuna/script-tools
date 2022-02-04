@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+#
+# Info
+#
+	title "$EFI_MSG_BOOTNEXT_TITLE"
+	printe "$EFI_MSG_BOOTNEXT_ASK"
+#
+# Action
+#
+	$CMD_EFI | \
+		$GREP -v Time | \
+		$GREP -v Next | printe --
+		#while read line;do
+		#	tui-print -E "$line"
+		#done
+
+	while 	var=$(pick -m $(efi.list_nvram_num))
+		[[ ! "$PICKED" == "$SWARM_MSG_WORD_BACK" ]]
+	do
+		printe "$EFI_MSG_BOOTNEXT_CONFIRM_TXT" "$(efi.get_nvram_lbl $ID)"
+		yesno "$EFI_MSG_BOOTNEXT_CONFIRM_ASK" || exit
+		$EFI_CMD -n $ID > /dev/null
+		status $? "$EFI_MSG_SETTING_APPLIED"
+		break
+	done

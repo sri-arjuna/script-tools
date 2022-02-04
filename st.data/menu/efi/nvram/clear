@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#
+# Info
+#
+	title "$EFI_MSG_NVRAM_REMOVE_TITLE"
+#
+# Action
+#
+	str=$(efi.check)
+	status $? "$str" && efi.clear_nvram

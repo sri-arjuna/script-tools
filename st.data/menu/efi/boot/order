@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+#
+# Info
+#
+	title "$EFI_MSG_BOOTORDER_SET_TITLE"
+	status 111 "$EFI_MSG_BOOTORDER_INFO"
+#
+# Action
+#
+	$CMD_EFI
+	neworder=""
+
+	while [[ ! "$PICKED" == "${SWARM_MSG_WORD_BACK}" ]]
+	do
+		pick -m $(efi.list_nvram_num)
+		[[ ! "$PICKED" == "${SWARM_MSG_WORD_BACK}" ]] && neworder+=",$PICKED"
+	# Show new order?
+		$SED s/","/""/g <<< "$neworder"  >/dev/null && \
+			$beVerbose && \
+			printe "${EFI_MSG_CURRENT_BOOT_ORDER}" "${neworder:1}"
+	done
+#
+# Save changes?
+#
+	# Show new order?
+	if [[ -n "$neworder" ]] #&&
+	then	# Make sure it is 100% empty
+		neworder_dummy=$($SED s/","/""/g <<< "$neworder" >/dev/null )
+		[[ -n "$neworder_dummy" ]] || return
+		# End user question
+		yesno "$EFI_MSG_BOOTORDER_SAVE" && $CMD_EFI -o ${neworder:1} > /dev/null
+		status $? "$EFI_MSG_BOOTORDER_SET" "${neworder:1}"
+	fi

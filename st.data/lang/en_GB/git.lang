@@ -1,0 +1,20 @@
+#!/bin/bash
+#
+# General
+#
+	GIT_MSG_HOME_CONFIG="GIT configuration (home)"
+	GIT_MSG_CHANGE_HOME_CONFIG="Do you want to change the name and/or email?"
+	GIT_MSG_PROVIDER="What is your git service provider?"
+	GIT_MSG_YOUR_LOGIN="What is your login name for git"
+	GIT_MSG_YOUR_NAME="What is your name on git?"
+	GIT_MSG_YOUR_EMAIL="What is your email for git?"
+	GIT_MSG_HOME_CONFIG_CREATED="Created git user configuration."
+	GIT_MSG_HOME_CONFIG_SKIP="Skiped git user configuration"
+#
+# Project
+#
+	GIT_MSG_PRJ_TITLE="GIT Projects"
+	GIT_MSG_PRJ_CURRENT_DIR="The current directory is:"
+	GIT_MSG_PRJ_CREATE="Do you want to create a new git repository"
+	GIT_MSG_PRJ_DIR_ALREADY_PRJ="This directory is already a git repository."
+	GIT_MSG_PRJ_SETUP_SSH_NOW="Would you like to set it up for SSH access?"

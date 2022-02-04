@@ -1,0 +1,48 @@
+#!/usr/bni/env bash
+#
+# Info
+#
+	title "$EFI_MSG_DUALBOOT_TITLE"
+#
+# Variables
+#
+	printe "$EFI_MSG_DUALBOOT_WHICH_PART"
+	DEVICE=$(pick $(swarm.list.hdd))
+	EFIPART=$($ECHO 1|gdisk -l $DEVICE|$GREP -i EFI|$AWK '{print $1}')
+	if [[ -z "$EFIPART" ]]
+	then	status 1 "$EFI_MSG_NO_EFI_PARTITION"
+		exit
+	fi
+#
+# Variables : Windows
+#
+	windows_lbl=Windows
+	windows_ver=10
+	windows_efi=bootmgfw.efi
+#
+# Variables : Distro
+#
+	distro_lbl="$($AWK -F= '/DISTRIB_ID/ {print $2}' /etc/lsb-release)"
+	distro_ver="$($AWK -F= '/DISTRIB_RELEASE/ {print $2}' /etc/lsb-release)"
+	distro_efi="shim.efi"
+	#	fedora_lbl=$(awk '{print $1}'  /etc/fedora-release)
+	#	fedora_ver=$(awk '{print $3}'  /etc/fedora-release)
+	#	fedora_efi=shim.efi
+#
+# Windows
+#
+	printe "$EFI_MSG_DUALBOOT_ADD_WINDOWS"
+	cmd="$CMD_EFI -c -L \"${windows_lbl}_${windows_ver}\" -l \"\\\\EFI\\Microsoft\\Boot\\$windows_efi\" -d $DEVICE -p $EFIPART"
+	yesno "$SWARM_MSG_WORD_EXECUTE: $cmd" || exit
+	efi.log "$EFI_MSG_DUALBOOT_LOG_ADD_WIN: $cmd"
+	$cmd
+	status $? "$EFI_MSG_DUALBOOT_ADDED_ENTRY" "$windows_lbl $windows_ver"
+#
+# Distro
+#
+	printe "$EFI_MSG_DUALBOOT_ADD_DISTRO"
+	cmd="$CMD_EFI -c -L \"${distro_lbl}_${distro_ver}\" -l \"\\EFI\\${distro_lbl,,}\\$fedora_efi\" -d $DEVICE -p $EFIPART"
+	yesno "$SWARM_MSG_WORD_EXECUTE: $cmd" || exit
+	efi.log "$EFI_MSG_DUALBOOT_LOG_ADD_DISTRO: $cmd"
+	$cmd
+	status $? "$EFI_MSG_DUALBOOT_ADDED_ENTRY" "$DISTRO"

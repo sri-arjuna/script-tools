@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+$CMD_EFI | printe --

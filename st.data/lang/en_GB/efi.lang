@@ -1,0 +1,39 @@
+#!/bin/bash
+#
+# General
+#
+	EFI_MSG_NOT_EFI_SYSTEM="This is not an EFI system!"
+	EFI_MSG_SETTING_APPLIED="Setting applied."
+	EFI_MSG_NO_EFI_PARTITION="Could not find an EFI partition!"
+#
+# Boot Order
+#
+	EFI_MSG_BOOTORDER_CURRENT="Current boot order:"
+	EFI_MSG_BOOTORDER_SET="Set boot order to:"
+	EFI_MSG_BOOTORDER_SET_TITLE="Set boot order"
+	EFI_MSG_BOOTORDER_SAVE="Save new boot order?"
+	EFI_MSG_BOOTORDER_INFO="The one added remains first one in order"
+#
+# Boot Next
+#
+	EFI_MSG_BOOTNEXT_TITLE="Boot Next"
+	EFI_MSG_BOOTNEXT_ASK="Which ID to boot?"
+	EFI_MSG_BOOTNEXT_CONFIRM_TXT="Your next boot will be into:"
+	EFI_MSG_BOOTNEXT_CONFIRM_ASK="Is that correct?"
+#
+# NVRAM
+#
+	EFI_MSG_NVRAM_REMOVE_TITLE="Clear ALL nvram entries"
+	EFI_MSG_NVRAM_REMOVE_ASK="This will remove ALL nvram entrys, are you really sure?"
+	EFI_MSG_NVRAM_REMOVED="Removed all NVram entries found!"
+	EFI_MSG_NVRAM_EMPTY="NVram is already empty!"
+#
+# Dual Boot
+#
+	EFI_MSG_DUALBOOT_TITLE="Dual Boot" #"Adding basic dual boot entries..."
+	EFI_MSG_DUALBOOT_ADD_WINDOWS="Adding Windows entry..."
+	EFI_MSG_DUALBOOT_ADD_DISTRO="Adding Distro ($DISTRO) entry..."
+	EFI_MSG_DUALBOOT_LOG_ADD_WIN="Adding Windows"
+	EFI_MSG_DUALBOOT_LOG_ADD_DISTRO="Adding Distro ($DISTRO)"
+	EFI_MSG_DUALBOOT_ADDED_ENTRY="Added entry"
+	EFI_MSG_DUALBOOT_WHICH_PART="Which partition has the EFI partition?"

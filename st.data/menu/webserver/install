@@ -1,0 +1,192 @@
+#!/usr/bin/env bash
+# ------------------------------------------------------------------------
+# Copyright (c) 2017 by sea, sea @ localhost.localdomain
+# All rights reserved.
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License (GPL) as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License (GPL) for more details.
+#
+# You should have received a copy of the GNU General Public License (GPL)
+# along with this program.  If not, see http://www.gnu.org/licenses/gpl.html
+# ------------------------------------------------------------------------
+#set -x
+if [ -z "$ECHO" ]
+then	cd /home/sea/prjs/SWARM
+	source ./runtime
+	cd "$OLDPWD"
+fi
+#set +x
+
+webserver.mystuff() { #
+#
+#
+	echo
+}
+
+webserver.install() { #
+#
+#
+	title "Installation" >&1
+	
+	local pkg_redhat="httpd php phpMyAdmin mysql"
+	local pkg_arch="httpd php phpMyAdmin mysql"
+	
+	sudo dnf install -y $pkg_redhat
+}
+webserver.configure.local() { #
+# Configures httpd for local homefolder usage
+# This is only for single user computers!
+	echo TODO
+}
+webserver.configure() { #
+#
+#
+	title "Configure" >&1
+	
+	# Define default dirs per OS
+	local dir_redhat="/etc/httpd"
+	# Set the variable to work with according to distro OS
+	local dir_work="${dir_redhat}"
+	# Set default configuration files
+	local list_redhat="/etc/httpd/conf/httpd.conf /etc/httpd/conf.modules.d/00-base.conf"
+	# Prepare working variables for the configuration files
+	local i=1 t=${@#}
+	
+	replace() { # FIND REPL FILE
+	# 
+	#
+		sed s,"$1","$2",g -i "$3" 
+	}
+	backup() { # FILENAME
+	# Creates a backup copy
+	# Named FILENAME.org.bak
+		local FN="${1}.bak.org"
+		[ -f "$FN" ] && FN="${1}.bak"
+		${CP:-cp} -f "$1" "$FN"
+	}
+	users() { # USER
+	# Create the webserver users
+	#
+		local tName="${1:-apache}"
+		useradd -M -U "$tName"
+		#groupadd "$tName"
+		usermod -a -G "$tName" "${2:-dummy}"
+		#usermod -w $GID "${2:-dummy}"
+	}
+	replace.stuff() { #
+	# Replaces all the stuff at once
+	#
+		# Input required
+		local vars_todo="ServerName DocumentRoot "
+		
+		# First file
+		local f="$($ECHO $list_redhat|$AWK '{print $1}')"
+		
+		source /home/sea/.config/user-dirs.dirs
+		DocumentRoot="${XDG_WEB_DIR:-/home/sea/new/web/localhost}"
+		DocumentRoot="${DocumentRoot/\/localhost}/localhost"
+		ServerName="localhost"
+		chmod 711 "$DocumentRoot"
+		
+		# Parse the variables
+		local F="ServerAdmin root@localhost"
+		local R="ServerAdmin ${USER_EMAIL:-$USER@$HOSTNAME}"
+		replace "$F" "$R" "$f"
+		
+		local F="#ServerName www.example.com:80"
+		local R="ServerName $ServerName"
+		replace "$F" "$R" "$f"
+		
+		local F="DocumentRoot \"/var/www/html\""
+		local R="DocumentRoot \"$DocumentRoot\""
+		replace "$F" "$R" "$f"
+		
+		local F="DirectoryIndex index.html"
+		local R="DirectoryIndex index.php index.html index.htm"
+		replace "$F" "$R" "$f"
+		
+		local F=""
+		local R=""
+		#replace "$F" "$R" "$f"
+		
+		local F=""
+		local R=""
+		#replace "$F" "$R" "$f"
+		
+		local F=""
+		local R=""
+		#replace "$F" "$R" "$f"
+		
+		
+	}
+	
+	for f in $list_redhat
+	do
+		status 2 "Creating backup file $i/$t ($f)..."
+		i=$(( $i + 1 ))
+		printf "\n" 
+		backup "$f"
+	done
+	replace.stuff
+	users "apache" "sea"
+	
+}
+webserver.header() { #
+#
+#
+	clear
+	header "Script-Tools - Webserver" >&1
+}
+webserver.menu() { #
+#
+#
+	webserver.header
+	title "Menu" >&1
+	printf "\n" 
+	
+	echo TODO TODO TODO >&1
+	printf "\n" 
+	# TODO
+}
+
+webserver.menu
+#webserver.install
+webserver.configure
+
+	
+function_name() { # [optional] ARGS
+# 2 lines for description of function purpose
+# 
+ 	# Load according language file, fallback to en_GB if translation is missing
+ 	#source "${DIR_LANG}/core.display.yesno" || source "${DIR_LANG/$SWARM_LANG/en_GB}/core.display.yesno"
+
+ 	# Catch arguments
+ 	#case "${0}" in
+ 	#"bash")
+ 		local ARG=""
+ 		for ARG in "${@}"
+ 		do
+ 			case "$ARG" in
+ 			"-h"|"--help")	swarm.show.help "core.display.yesno"
+ 					exit 99
+ 					;;
+ 			"--version")	swarm.show.version "core.display.yesno"
+ 					exit 0
+ 					;;
+ 			"--manpage")	swarm.show.manpage "core.display.yesno"
+ 					exit 0
+ 					;;
+ 			esac
+ 		done
+ 	#		;;
+ 	#esac
+ 	$ECHO TODO $FUNCNAME
+ 	echo "left str" "center str" "$(swarm.show.string 'core.display.yesno' script_email)"
+}
